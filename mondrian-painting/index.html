@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mondrian Project</title>
+  <style>
+    /* 
+    Write your CSS here 
+    Gap Colour: #000
+    White: #F0F1EC
+    Red: #E72F24
+    Black: #232629
+    Blue: #004592
+    Yellow: #F9D01E
+
+    For dimensions, see dimensions.png image.
+    HINT: Remember you can't change the properties of grid lines.
+    But grid lines are transparent!
+    */
+    .container {
+      height: 748px;
+      width: 748px;
+      display: grid;
+      grid-template-columns: 320px 198px 153px 50px;
+      grid-template-rows: 414px 131px 155px 20px;
+      gap: 9px;
+      background-color: #000;
+    }
+
+    .tile {
+      background-color: #F0F1EC;
+    }
+
+    .red {
+      background-color: #E72F24;
+    }
+    
+    .two {
+      grid-column: 2 / 5;
+    }
+
+    .three {
+      grid-row: 2 / 4;
+    }
+    
+    .four {
+      grid-column: 2 / 4;
+      grid-row: 2 / 4;
+    }
+
+    .blue {
+      background-color: #004592;
+      border-bottom: 10px solid #000;
+    }
+
+    .six {
+      grid-row: span 2;
+    }
+
+    .yellow {
+      background-color: #F9D01E;
+    }
+
+    .black {
+      background-color: #232629;
+    }
+
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="tile red"></div>
+    <div class="tile two"></div>
+    <div class="tile three"></div>
+    <div class="tile four"></div>
+    <div class="tile five blue"></div>
+    <div class="tile six"></div>
+    <div class="tile seven"></div>
+    <div class="tile eight yellow"></div>
+    <div class="tile nine black"></div>
+  </div>
+</body>
+
+</html>
