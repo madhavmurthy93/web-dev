@@ -21,10 +21,6 @@ body {
   margin-left: 0px;
 }
 
-.card {
-  display: inline-block;
-}
-
 .card-text {
   font-size: 0.9rem;
 }
@@ -58,10 +54,6 @@ footer {
 
   .logo {
     width: 100px;
-  }
-
-  .card {
-    display: block;
   }
 
   .tile-image {
