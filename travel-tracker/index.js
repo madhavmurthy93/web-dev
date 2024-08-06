@@ -26,14 +26,27 @@ app.use(express.static("public"));
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
+let currentUserId = 1;
+
 async function getVisited() {
-  const result = await db.query("SELECT * FROM visited_countries");
+  const result = await db.query("SELECT * FROM visited_countries WHERE user_id = $1", [currentUserId]);
   return result.rows.map(row => row.country_code);
+}
+
+async function getUsers() {
+  const result = await db.query("SELECT * FROM users");
+  return result.rows;
 }
 
 app.get("/", async (req, res) => {
   const visited = await getVisited();
-  res.render("index", { total: visited.length, countries: visited });
+  const users = await getUsers();
+  res.render("index", {
+    total: visited.length,
+    countries: visited,
+    users: users,
+    color: users.find(user => user.id == currentUserId).color
+  });
 });
 
 app.post("/add", async (req, res) => {
@@ -45,7 +58,7 @@ app.post("/add", async (req, res) => {
     }
     try {
       const data = result.rows[0];
-      await db.query("INSERT INTO visited_countries (country_code) VALUES ($1)", [data.country_code]);
+      await db.query("INSERT INTO visited_countries (country_code, user_id) VALUES ($1, $2)", [data.country_code, currentUserId]);
       res.redirect("/");
     } catch (err) {
       console.log(err);
@@ -66,6 +79,26 @@ app.post("/add", async (req, res) => {
     });
   }
 });
+
+app.post("/user", async (req, res) => {
+  const user = req.body.user;
+  const add = req.body.add;
+  if (add === "new") {
+    res.render("new");
+  } else {
+    currentUserId = user;
+    res.redirect("/");
+  }
+});
+
+app.post("/new", async (req, res) => {
+  const name = req.body.name.trim();
+  const color = req.body.color;
+  const result = await db.query("INSERT INTO users (name, color) VALUES ($1, $2) RETURNING id;", [name, color]);
+  currentUserId = result.rows[0].id;
+  res.redirect("/");
+});
+
 
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
