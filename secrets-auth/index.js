@@ -1,6 +1,7 @@
 import express from "express";
 import bodyParser from "body-parser";
 import pg from "pg";
+import bcrypt from "bcrypt";
 import "dotenv/config";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -8,6 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const port = 3000;
+const saltRounds = 10;
 
 const db = new pg.Client({
   user: process.env.DB_USER,
@@ -47,7 +49,8 @@ app.post("/register", async (req, res) => {
     if (result.rows.length > 0) {
       res.send("User already registered. Please log in");
     } else {
-      result = await db.query("INSERT INTO users (email, password) VALUES ($1, $2);", [email, password]);
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+      result = await db.query("INSERT INTO users (email, password) VALUES ($1, $2);", [email, hashedPassword]);
       res.render("secrets");
     }
   } catch (err) {
@@ -64,7 +67,8 @@ app.post("/login", async (req, res) => {
     const result = await db.query("SELECT * FROM users WHERE email = $1;", [email]);
     if (result.rows.length > 0) {
       const user = result.rows[0];
-      if (password == user.password) {
+      const match = await bcrypt.compare(password, user.password);
+      if (match) {
         res.render("secrets");
       } else {
         res.send("Incorrect username/password. Please try again");
@@ -75,6 +79,7 @@ app.post("/login", async (req, res) => {
     
   } catch (err) {
     console.log(err);
+    res.send("Unable to login user. Please try again");
   }
 });
 
