@@ -2,6 +2,9 @@ import express from "express";
 import bodyParser from "body-parser";
 import pg from "pg";
 import bcrypt from "bcrypt";
+import passport from "passport";
+import session from "express-session";
+import { Strategy } from "passport-local";
 import "dotenv/config";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -24,6 +27,14 @@ db.connect();
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: true
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+
 // Middelware to set EJS as the view engine
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
@@ -40,6 +51,23 @@ app.get("/register", (req, res) => {
   res.render("register.ejs");
 });
 
+app.get("/secrets", (req, res) => {
+  if (req.isAuthenticated()) {
+    res.render("secrets");
+  } else {
+    res.redirect("/login");
+  }
+});
+
+app.get("/logout", (req, res) => {
+  req.logout(function (err) {
+    if (err) {
+      return next(err);
+    }
+    res.redirect("/");
+  });
+});
+
 app.post("/register", async (req, res) => {
   const email = req.body.username;
   const password = req.body.password;
@@ -47,11 +75,15 @@ app.post("/register", async (req, res) => {
   try {
     let result = await db.query("SELECT * FROM users WHERE email = $1;", [email]);
     if (result.rows.length > 0) {
-      res.send("User already registered. Please log in");
+      res.redirect("/login");
     } else {
       const hashedPassword = await bcrypt.hash(password, saltRounds);
-      result = await db.query("INSERT INTO users (email, password) VALUES ($1, $2);", [email, hashedPassword]);
-      res.render("secrets");
+      result = await db.query("INSERT INTO users (email, password) VALUES ($1, $2) RETURNING *;", [email, hashedPassword]);
+      const user = result.rows[0];
+      req.login(user, (err) => {
+        if (err) console.log(err);
+        res.redirect("/secrets");
+      });
     }
   } catch (err) {
     console.log(err);
@@ -59,28 +91,38 @@ app.post("/register", async (req, res) => {
   }
 });
 
-app.post("/login", async (req, res) => {
-  const email = req.body.username;
-  const password = req.body.password;
+app.post("/login", passport.authenticate("local", {
+  successRedirect: "/secrets",
+  failureRedirect: "/login"
+}));
 
+passport.use(new Strategy(async function verify(username, password, cb) {
   try {
-    const result = await db.query("SELECT * FROM users WHERE email = $1;", [email]);
+    const result = await db.query("SELECT * FROM users WHERE email = $1;", [username]);
     if (result.rows.length > 0) {
       const user = result.rows[0];
       const match = await bcrypt.compare(password, user.password);
       if (match) {
-        res.render("secrets");
+        cb(null, user);
       } else {
-        res.send("Incorrect username/password. Please try again");
+        cb(null, false);
       }
     } else {
-      res.send("User not found. Please register");
+      cb(null, false);
     }
     
   } catch (err) {
     console.log(err);
-    res.send("Unable to login user. Please try again");
+    cb(err);
   }
+}));
+
+passport.serializeUser((user, cb) => {
+  cb(null, user);
+});
+
+passport.deserializeUser((user, cb) => {
+  cb(null, user);
 });
 
 app.listen(port, () => {
