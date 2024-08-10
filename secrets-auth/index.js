@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import passport from "passport";
 import session from "express-session";
 import { Strategy } from "passport-local";
+import GoogleStrategy from "passport-google-oauth2";
 import "dotenv/config";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -43,21 +44,22 @@ app.get("/", (req, res) => {
   res.render("home.ejs");
 });
 
-app.get("/login", (req, res) => {
-  res.render("login.ejs");
-});
-
 app.get("/register", (req, res) => {
   res.render("register.ejs");
 });
 
-app.get("/secrets", (req, res) => {
-  if (req.isAuthenticated()) {
-    res.render("secrets");
-  } else {
-    res.redirect("/login");
-  }
+app.get("/login", (req, res) => {
+  res.render("login.ejs");
 });
+
+app.get("/auth/google", passport.authenticate("google", {
+  scope: [ "profile", "email" ]
+}));
+
+app.get("/auth/google/secrets", passport.authenticate("google", {
+  successRedirect: "/secrets",
+  failureRedirect: "/login"
+}));
 
 app.get("/logout", (req, res) => {
   req.logout(function (err) {
@@ -66,6 +68,46 @@ app.get("/logout", (req, res) => {
     }
     res.redirect("/");
   });
+});
+
+app.get("/secrets", async (req, res) => {
+  if (req.isAuthenticated()) {
+    try {
+      const user = req.user;
+      const result = await db.query("SELECT * FROM users WHERE email = $1;", [user.email]);
+      const secret = result.rows[0].secret;
+      res.render("secrets", { secret: secret });
+    } catch (err) {
+      console.log(err);
+      res.send("Unable to load secret");
+    }
+  } else {
+    res.redirect("/login");
+  }
+});
+
+app.get("/submit", (req, res) => {
+  if (req.isAuthenticated()) {
+    res.render("submit");
+  } else {
+    res.redirect("/login");
+  }
+});
+
+app.post("/submit", async (req, res) => {
+  if (req.isAuthenticated()) {
+    try {
+      const user = req.user;
+      const body = req.body;
+      const result = await db.query("UPDATE users SET secret = $1 WHERE email = $2;", [ body.secret, user.email ]);
+      res.redirect("/secrets");
+    } catch (err) {
+      console.log(err);
+      res.send("Unable to update secret");
+    }
+  } else {
+    res.redirect("/login");
+  }
 });
 
 app.post("/register", async (req, res) => {
@@ -96,7 +138,7 @@ app.post("/login", passport.authenticate("local", {
   failureRedirect: "/login"
 }));
 
-passport.use(new Strategy(async function verify(username, password, cb) {
+passport.use("local", new Strategy(async function verify(username, password, cb) {
   try {
     const result = await db.query("SELECT * FROM users WHERE email = $1;", [username]);
     if (result.rows.length > 0) {
@@ -116,6 +158,28 @@ passport.use(new Strategy(async function verify(username, password, cb) {
     cb(err);
   }
 }));
+
+passport.use("google", new GoogleStrategy({
+  clientID: process.env.GOOGLE_OAUTH_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+  callbackURL: "http://localhost:3000/auth/google/secrets",
+  userprofileURL: "https://www.googleapis.com/oauth2/v3/userinfo"
+}, async (accessToken, refreshToken, profile, cb) => {
+  try {
+    const result = await db.query("SELECT * FROM users WHERE email = $1;", [profile.email]);
+    if (result.rows.length == 0) {
+      const result = await db.query("INSERT INTO users (email, password) VALUES ($1, $2) RETURNING *;", [profile.email, "google"]);
+      const newUser = result.rows[0];
+      cb(null, newUser);
+    } else {
+      const user = result.rows[0];
+      cb(null, user);
+    }
+  } catch (err) {
+    console.log(err);
+    cb(err);
+  }
+}))
 
 passport.serializeUser((user, cb) => {
   cb(null, user);
